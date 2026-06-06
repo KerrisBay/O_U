@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ornstein-Uhlenbeck Process & Joint Bayesian Calibration Dashboard</title>
+    <!-- Tailwind CSS for modern layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+        }
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                    Ornstein-Uhlenbeck Process Simulator
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">Real-time forward integration & live dual-parameter Bayesian Estimation</p>
+            </div>
+            <div class="flex items-center gap-3 bg-slate-800/80 px-4 py-2 rounded-lg border border-slate-700/50">
+                <span class="text-xs font-semibold text-indigo-300 uppercase tracking-wider">Model:</span>
+                <span class="text-sm code-font font-semibold text-slate-300">dXₜ = θ(μ - Xₜ)dt + σdWₜ</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Content -->
+    <main class="max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Pane: Controls & Parameter Customization -->
+        <section class="lg:col-span-4 flex flex-col gap-6">
+            
+            <!-- Simulation Parameter Controls Card -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-xl backdrop-blur-md">
+                <h2 class="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
+                    True Process Parameters
+                </h2>
+                
+                <div class="space-y-4">
+                    <!-- Theta Controller -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="slider-theta" class="text-sm font-medium text-slate-400">Reversion Speed (<span class="code-font text-blue-400">θ</span>)</label>
+                            <span id="val-theta" class="text-xs code-font bg-slate-800 px-2 py-0.5 rounded text-blue-400 font-bold">1.50</span>
+                        </div>
+                        <input type="range" id="slider-theta" min="0.1" max="5.0" step="0.05" value="1.50" 
+                               class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                        <p class="text-[10px] text-slate-500 mt-1">Controls how rapidly the process pulls back toward the long-term mean.</p>
+                    </div>
+
+                    <!-- Mu Controller -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="slider-mu" class="text-sm font-medium text-slate-400">Long-term Mean (<span class="code-font text-emerald-400">μ</span>)</label>
+                            <span id="val-mu" class="text-xs code-font bg-slate-800 px-2 py-0.5 rounded text-emerald-400 font-bold">0.00</span>
+                        </div>
+                        <input type="range" id="slider-mu" min="-4.0" max="4.0" step="0.1" value="0.00" 
+                               class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                        <p class="text-[10px] text-slate-500 mt-1">The equilibrium state or attractor point of the system.</p>
+                    </div>
+
+                    <!-- Sigma Controller -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="slider-sigma" class="text-sm font-medium text-slate-400">Volatility (<span class="code-font text-amber-400">σ</span>)</label>
+                            <span id="val-sigma" class="text-xs code-font bg-slate-800 px-2 py-0.5 rounded text-amber-400 font-bold">0.80</span>
+                        </div>
+                        <input type="range" id="slider-sigma" min="0.1" max="3.0" step="0.05" value="0.80" 
+                               class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                        <p class="text-[10px] text-slate-500 mt-1">The intensity of the Brownian noise fluctuations.</p>
+                    </div>
+
+                    <!-- X0 Controller -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="slider-x0" class="text-sm font-medium text-slate-400">Initial State (<span class="code-font text-purple-400">X₀</span>)</label>
+                            <span id="val-x0" class="text-xs code-font bg-slate-800 px-2 py-0.5 rounded text-purple-400 font-bold">3.00</span>
+                        </div>
+                        <input type="range" id="slider-x0" min="-5.0" max="5.0" step="0.1" value="3.00" 
+                               class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                    </div>
+                </div>
+
+                <!-- Simulation Speed & Actions -->
+                <div class="mt-6 pt-5 border-t border-slate-800/80 flex flex-col gap-3">
+                    <div class="flex gap-2">
+                        <button id="btn-play-pause" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 px-4 rounded-lg text-sm transition duration-150 flex items-center justify-center gap-2">
+                            <svg id="icon-pause" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <svg id="icon-play" class="w-4 h-4 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+                            <span id="text-play-pause">Pause Simulation</span>
+                        </button>
+                        <button id="btn-reset" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 px-4 rounded-lg text-sm transition duration-150">
+                            Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bayesian Prior Settings Card -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-xl backdrop-blur-md">
+                <h2 class="text-lg font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                    Bayesian Priors
+                </h2>
+                <p class="text-xs text-slate-400 mb-4">Initialize conjugate prior parameters for both <span class="code-font text-emerald-400">μ</span> and <span class="code-font text-amber-400">σ</span>.</p>
+                
+                <div class="space-y-4">
+                    <!-- Prior Mean of Mu -->
+                    <div class="border-b border-slate-800/80 pb-3">
+                        <span class="text-xs font-semibold text-slate-300 block mb-2">Mean Prior Parameters:</span>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="prior-mu-mean" class="text-xs font-medium text-slate-400">Prior Mean (m₀)</label>
+                            <span id="val-prior-mu-mean" class="text-xs code-font text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">2.00</span>
+                        </div>
+                        <input type="range" id="prior-mu-mean" min="-4.0" max="4.0" step="0.1" value="2.00" 
+                               class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 mb-2">
+
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="prior-mu-var" class="text-xs font-medium text-slate-400">Prior Uncertainty (σ₀²)</label>
+                            <span id="val-prior-mu-var" class="text-xs code-font text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">2.00</span>
+                        </div>
+                        <input type="range" id="prior-mu-var" min="0.1" max="5.0" step="0.1" value="2.00" 
+                               class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400">
+                    </div>
+
+                    <!-- Prior of Sigma (Inverse Gamma) -->
+                    <div>
+                        <span class="text-xs font-semibold text-slate-300 block mb-2">Volatility Prior (Inv-Gamma):</span>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="prior-sigma-guess" class="text-xs font-medium text-slate-400">Prior Volatility Guess (σ₀)</label>
+                            <span id="val-prior-sigma-guess" class="text-xs code-font text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">1.50</span>
+                        </div>
+                        <input type="range" id="prior-sigma-guess" min="0.2" max="3.0" step="0.1" value="1.50" 
+                               class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 mb-2">
+
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="prior-sigma-dof" class="text-xs font-medium text-slate-400">Prior Confidence (ν₀)</label>
+                            <span id="val-prior-sigma-dof" class="text-xs code-font text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">10.0</span>
+                        </div>
+                        <input type="range" id="prior-sigma-dof" min="3.0" max="50.0" step="1.0" value="10.0" 
+                               class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400">
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Pane: Live Visualizations and Bayesian Details -->
+        <section class="lg:col-span-8 flex flex-col gap-6">
+            
+            <!-- Graphic Outputs Panel -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-xl backdrop-blur-md flex flex-col gap-6">
+                
+                <!-- Main Path Simulation Chart -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <svg class="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                            Real-time Path Simulation (Xₜ)
+                        </h3>
+                        <div class="flex items-center gap-4 text-xs">
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-blue-500 inline-block"></span> Path</span>
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 border-t border-dashed border-emerald-400 inline-block"></span> True Mean (μ)</span>
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-indigo-400 inline-block"></span> Posterior Mean E[μ]</span>
+                        </div>
+                    </div>
+                    <div class="relative bg-slate-950 rounded-lg overflow-hidden border border-slate-800/80">
+                        <canvas id="canvas-path" class="w-full h-[280px] block"></canvas>
+                    </div>
+                </div>
+
+                <!-- Live Posterior Probability Densities (Side-by-Side) -->
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" /></svg>
+                        Live Parameter Posteriors
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-slate-950 rounded-lg overflow-hidden border border-slate-800/80 p-2">
+                            <span class="text-xs font-semibold text-slate-400 block px-2 py-1">P(μ | Data) — Normal Distribution</span>
+                            <canvas id="canvas-posterior-mu" class="w-full h-[180px] block"></canvas>
+                        </div>
+                        <div class="bg-slate-950 rounded-lg overflow-hidden border border-slate-800/80 p-2">
+                            <span class="text-xs font-semibold text-slate-400 block px-2 py-1">P(σ | Data) — Inverse-Gamma derived</span>
+                            <canvas id="canvas-posterior-sigma" class="w-full h-[180px] block"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bayesian Framework Advantage Analysis -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-6 shadow-xl backdrop-blur-md">
+                <h3 class="text-base font-semibold text-indigo-300 mb-3 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                    Understanding the Bayesian Estimation Engine
+                </h3>
+                
+                <div class="text-sm text-slate-300 space-y-4 leading-relaxed">
+                    <p>
+                        <strong>Hooray!</strong> By shifting from a classical point-estimation approach to a 
+                        <strong>Bayesian framework</strong>, we gain immense analytical advantages when studying continuous-time 
+                        stochastic systems like the Ornstein-Uhlenbeck process.
+                    </p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                        <div class="bg-slate-950/50 p-3.5 rounded-lg border border-slate-800/60">
+                            <h4 class="text-indigo-400 font-semibold text-xs uppercase tracking-wider mb-1">Advantages of Joint Volatility Estimation</h4>
+                            <ul class="list-disc list-inside text-xs space-y-1.5 text-slate-400">
+                                <li><strong class="text-slate-300">Robust Error Correction:</strong> Classical methods assume $\sigma$ is fixed when estimating $\mu$. Our joint estimator handles the structural covariance between parameters natively.</li>
+                                <li><strong class="text-slate-300">Information Conservation:</strong> Instead of discarding historical volatility samples, the Inverse-Gamma posterior acts as an optimal recursive filter for variance.</li>
+                                <li><strong class="text-slate-300">Fast Convergence:</strong> We bypass costly Markov Chain Monte Carlo (MCMC) simulations entirely, maintaining lightning-fast continuous update rates using exact analytical conjugacy.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-slate-950/50 p-3.5 rounded-lg border border-slate-800/60">
+                            <h4 class="text-indigo-400 font-semibold text-xs uppercase tracking-wider mb-1">Math Behind Conjugate Volatility Updates</h4>
+                            <p class="text-xs text-slate-400 leading-normal">
+                                Given the discretization step deviation $e_t = X_{t+1} - X_t - \theta(\mathbb{E}[\mu] - X_t)\Delta t$, we have:
+                                <span class="block my-1.5 text-center text-indigo-300 code-font">e_t \sim \mathcal{N}(0, \sigma^2 \Delta t)</span>
+                                By setting an Inverse-Gamma prior on $V = \sigma^2$, we update the hyper-parameters at each step recursively:
+                                <span class="block my-1.5 text-center text-indigo-300 code-font">\alpha_t = \alpha_{t-1} + 0.5,\quad \beta_t = \beta_{t-1} + 0.5 \frac{e_t^2}{\Delta t}</span>
+                                This allows us to instantly map the probability density of the volatility as $f(\sigma) = 2 \sigma f_V(\sigma^2)$.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Bottom Footer -->
+    <footer class="border-t border-slate-800/80 bg-slate-950/40 py-4 px-6 text-center text-xs text-slate-500">
+        <p>Designed for analytical, high-performance visual processing. Complies with real-time viewport and interaction targets.</p>
+    </footer>
+
+    <!-- Interactive script for Simulation and Inference -->
+    <script>
+        // High-DPI Canvas initialization helper
+        function setupCanvas(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            
+            return { canvas, ctx, rect };
+        }
+
+        let pathObj = setupCanvas('canvas-path');
+        let postMuObj = setupCanvas('canvas-posterior-mu');
+        let postSigmaObj = setupCanvas('canvas-posterior-sigma');
+
+        // Simulation parameters
+        let theta = 1.50;
+        let mu = 0.00;
+        let sigma = 0.80;
+        let x0 = 3.00;
+
+        // Interactive prior parameters (Mu)
+        let priorMuMean = 2.00;
+        let priorMuVar = 2.00;
+
+        // Interactive prior parameters (Sigma)
+        let priorSigmaGuess = 1.50;
+        let priorSigmaDof = 10.0;
+        let priorAlpha = 5.0;
+        let priorBeta = 4.5;
+
+        // Simulated state variables
+        let currentX = x0;
+        let dataPoints = [];
+        const maxPoints = 250;
+        const dt = 0.025; // Continuous-time step
+        let isPaused = false;
+
+        // Joint Bayesian Online Estimation states
+        let postMuMean = priorMuMean;
+        let postMuVar = priorMuVar;
+
+        let postAlpha = priorAlpha;
+        let postBeta = priorBeta;
+
+        // UI Element Hooks
+        const sliders = {
+            theta: document.getElementById('slider-theta'),
+            mu: document.getElementById('slider-mu'),
+            sigma: document.getElementById('slider-sigma'),
+            x0: document.getElementById('slider-x0'),
+            priorMean: document.getElementById('prior-mu-mean'),
+            priorVar: document.getElementById('prior-mu-var'),
+            priorSigmaGuess: document.getElementById('prior-sigma-guess'),
+            priorSigmaDof: document.getElementById('prior-sigma-dof')
+        };
+
+        const valDisplays = {
+            theta: document.getElementById('val-theta'),
+            mu: document.getElementById('val-mu'),
+            sigma: document.getElementById('val-sigma'),
+            x0: document.getElementById('val-x0'),
+            priorMean: document.getElementById('val-prior-mu-mean'),
+            priorVar: document.getElementById('val-prior-mu-var'),
+            priorSigmaGuess: document.getElementById('val-prior-sigma-guess'),
+            priorSigmaDof: document.getElementById('val-prior-sigma-dof')
+        };
+
+        const btnPlayPause = document.getElementById('btn-play-pause');
+        const btnReset = document.getElementById('btn-reset');
+        const iconPause = document.getElementById('icon-pause');
+        const iconPlay = document.getElementById('icon-play');
+        const textPlayPause = document.getElementById('text-play-pause');
+
+        // Normal-distributed Random Generator (Box-Muller)
+        function randomNormal() {
+            let u = 0, v = 0;
+            while(u === 0) u = Math.random();
+            while(v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        }
+
+        // Apply slider inputs to numerical parameters
+        function updateFromSliders() {
+            theta = parseFloat(sliders.theta.value);
+            mu = parseFloat(sliders.mu.value);
+            sigma = parseFloat(sliders.sigma.value);
+            x0 = parseFloat(sliders.x0.value);
+
+            priorMuMean = parseFloat(sliders.priorMean.value);
+            priorMuVar = parseFloat(sliders.priorVar.value);
+
+            priorSigmaGuess = parseFloat(sliders.priorSigmaGuess.value);
+            priorSigmaDof = parseFloat(sliders.priorSigmaDof.value);
+
+            // Translate Volatility Guess & DoF to Inverse-Gamma alpha & beta
+            // alpha = DoF / 2
+            // beta = guess_variance * (alpha - 1)
+            priorAlpha = priorSigmaDof / 2.0;
+            priorBeta = (priorSigmaGuess * priorSigmaGuess) * (priorAlpha - 1.0);
+
+            valDisplays.theta.innerText = theta.toFixed(2);
+            valDisplays.mu.innerText = mu.toFixed(2);
+            valDisplays.sigma.innerText = sigma.toFixed(2);
+            valDisplays.x0.innerText = x0.toFixed(2);
+            valDisplays.priorMean.innerText = priorMuMean.toFixed(2);
+            valDisplays.priorVar.innerText = priorMuVar.toFixed(2);
+            valDisplays.priorSigmaGuess.innerText = priorSigmaGuess.toFixed(2);
+            valDisplays.priorSigmaDof.innerText = priorSigmaDof.toFixed(1);
+        }
+
+        // Initialize simulation trajectory
+        function resetSimulation() {
+            updateFromSliders();
+            currentX = x0;
+            dataPoints = [currentX];
+            
+            // Reset posteriors back to corresponding prior states
+            postMuMean = priorMuMean;
+            postMuVar = priorMuVar;
+
+            postAlpha = priorAlpha;
+            postBeta = priorBeta;
+        }
+
+        // Forward integration (Euler-Maruyama step)
+        function integrateStep() {
+            const drift = theta * (mu - currentX) * dt;
+            const diffusion = sigma * Math.sqrt(dt) * randomNormal();
+            currentX = currentX + drift + diffusion;
+            dataPoints.push(currentX);
+            
+            if (dataPoints.length > maxPoints) {
+                dataPoints.shift();
+            }
+        }
+
+        // Online Joint Bayesian updater for Mean Parameter 'mu' and Volatility 'sigma'
+        function updateBayesianEstimation() {
+            if (dataPoints.length < 2) return;
+
+            const xt0 = dataPoints[dataPoints.length - 2];
+            const xt1 = dataPoints[dataPoints.length - 1];
+
+            const denom = theta * dt;
+            if (Math.abs(denom) < 1e-5) return;
+
+            // 1. UPDATE VOLATILITY POSTERIOR (Inverse-Gamma)
+            // Compute residual process step error using the current running estimate of the mean (postMuMean)
+            const e_t = (xt1 - xt0) - theta * (postMuMean - xt0) * dt;
+            const d_t = (e_t * e_t) / dt;
+
+            postAlpha = postAlpha + 0.5;
+            postBeta = postBeta + 0.5 * d_t;
+
+            // Compute new estimated volatility expectation (sqrt of mean of Inverse-Gamma distribution)
+            let estVar = postBeta / (postAlpha - 1.0);
+            if (estVar <= 0 || isNaN(estVar)) estVar = 0.01;
+
+            // 2. UPDATE MEAN POSTERIOR (Gaussian-Gaussian conjugate update)
+            // Use the updated variance estimation directly in the precision weight of the mean update
+            const obsY = (xt1 - xt0 + theta * xt0 * dt) / denom;
+            const obsVar = estVar / (theta * theta * dt);
+
+            const priorPrecision = 1.0 / postMuVar;
+            const obsPrecision = 1.0 / obsVar;
+
+            const postPrecision = priorPrecision + obsPrecision;
+            postMuVar = 1.0 / postPrecision;
+            postMuMean = postMuVar * (priorPrecision * postMuMean + obsPrecision * obsY);
+        }
+
+        // Rendering Engine: Sim Path Canvas
+        function drawSimulationPath() {
+            const { ctx, canvas } = pathObj;
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Coordinate mapping: Space [-6, 6] -> Pixels [0, h]
+            const yMin = -6;
+            const yMax = 6;
+            function scaleY(val) {
+                return h - ((val - yMin) / (yMax - yMin)) * h;
+            }
+
+            // Draw horizontal coordinate grid lines
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#475569';
+            ctx.font = '10px JetBrains Mono';
+
+            for (let i = yMin + 1; i < yMax; i += 2) {
+                const yPos = scaleY(i);
+                ctx.beginPath();
+                ctx.moveTo(0, yPos);
+                ctx.lineTo(w, yPos);
+                ctx.stroke();
+                ctx.fillText(i.toFixed(1), 8, yPos - 3);
+            }
+
+            // Draw Target Mean (μ) Line (Dashed)
+            ctx.strokeStyle = '#10b981'; // Emerald
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, scaleY(mu));
+            ctx.lineTo(w, scaleY(mu));
+            ctx.stroke();
+            ctx.setLineDash([]); // Reset dashed state
+
+            // Draw Bayesian Credible Interval Bounds for Mean (95% CI: E[μ] ± 1.96 * SD)
+            const postSD = Math.sqrt(postMuVar);
+            const lowerCI = postMuMean - 1.96 * postSD;
+            const upperCI = postMuMean + 1.96 * postSD;
+
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.08)'; // Deep Indigo shade
+            ctx.fillRect(0, scaleY(upperCI), w, scaleY(lowerCI) - scaleY(upperCI));
+
+            // Draw Estimated Mean Line (Solid)
+            ctx.strokeStyle = 'rgba(99, 102, 241, 0.75)'; // Transparent Indigo
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, scaleY(postMuMean));
+            ctx.lineTo(w, scaleY(postMuMean));
+            ctx.stroke();
+
+            // Draw simulated trajectory
+            ctx.strokeStyle = '#3b82f6'; // Bright Blue
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = 'rgba(59, 130, 246, 0.3)';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+
+            const xStep = w / maxPoints;
+            for (let i = 0; i < dataPoints.length; i++) {
+                const px = i * xStep;
+                const py = scaleY(dataPoints[i]);
+
+                if (i === 0) {
+                    ctx.moveTo(px, py);
+                } else {
+                    ctx.lineTo(px, py);
+                }
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0; // Clear shadow
+        }
+
+        // Standard Normal PDF evaluator
+        function normalPDF(x, mean, variance) {
+            const sd = Math.sqrt(variance);
+            if (sd < 1e-4) return 0;
+            const exponent = -0.5 * Math.pow((x - mean) / sd, 2);
+            return (1.0 / (sd * Math.sqrt(2 * Math.PI))) * Math.exp(exponent);
+        }
+
+        // Unnormalized Volatility Density Function (derived from Inverse-Gamma on Variance)
+        // PDF(s) = s^(-2a-1) * exp(-b/s^2)
+        // Computes in log-space to safeguard against numerical overflows
+        function logVolatilityPDF(s, alpha, beta) {
+            if (s <= 1e-4) return -Infinity;
+            return -(2.0 * alpha + 1.0) * Math.log(s) - (beta / (s * s));
+        }
+
+        // Draw Posterior Profile of Mean (Mu)
+        function drawPosteriorMu() {
+            const { ctx, canvas } = postMuObj;
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+
+            ctx.clearRect(0, 0, w, h);
+
+            const xMin = -6;
+            const xMax = 6;
+            function scaleX(val) {
+                return ((val - xMin) / (xMax - xMin)) * w;
+            }
+
+            // Vertical coordinate labels
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#475569';
+            ctx.font = '10px JetBrains Mono';
+
+            for (let i = xMin + 2; i < xMax; i += 2) {
+                const xPos = scaleX(i);
+                ctx.beginPath();
+                ctx.moveTo(xPos, 0);
+                ctx.lineTo(xPos, h);
+                ctx.stroke();
+                ctx.fillText(i.toFixed(1), xPos - 8, h - 6);
+            }
+
+            const peakPrior = normalPDF(priorMuMean, priorMuMean, priorMuVar);
+            const peakPost = normalPDF(postMuMean, postMuMean, postMuVar);
+            const maxVal = Math.max(peakPrior, peakPost, 1.0); 
+            const scaleY = (val) => h - 20 - (val / maxVal) * (h - 40);
+
+            // 1. Prior Profile (Slate dashed)
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            for (let i = 0; i <= w; i++) {
+                const pVal = xMin + (i / w) * (xMax - xMin);
+                const density = normalPDF(pVal, priorMuMean, priorMuVar);
+                if (i === 0) ctx.moveTo(i, scaleY(density));
+                else ctx.lineTo(i, scaleY(density));
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 2. Posterior Profile (Solid Filled Indigo)
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.15)';
+            ctx.strokeStyle = '#6366f1';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(0, h - 20);
+            for (let i = 0; i <= w; i++) {
+                const pVal = xMin + (i / w) * (xMax - xMin);
+                const density = normalPDF(pVal, postMuMean, postMuVar);
+                ctx.lineTo(i, scaleY(density));
+            }
+            ctx.lineTo(w, h - 20);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // True Parameter Marker Line
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(scaleX(mu), 0);
+            ctx.lineTo(scaleX(mu), h - 20);
+            ctx.stroke();
+
+            // Overlay Info labels
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px Inter';
+            ctx.fillText(`True μ: ${mu.toFixed(2)}`, scaleX(mu) + 6, 20);
+            ctx.fillStyle = '#818cf8';
+            ctx.fillText(`Est E[μ]: ${postMuMean.toFixed(2)}`, scaleX(postMuMean) + 6, 40);
+        }
+
+        // Draw Posterior Profile of Volatility (Sigma)
+        function drawPosteriorSigma() {
+            const { ctx, canvas } = postSigmaObj;
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Volatility limits on x-axis [0.01, 3.5]
+            const xMin = 0.01;
+            const xMax = 3.5;
+            function scaleX(val) {
+                return ((val - xMin) / (xMax - xMin)) * w;
+            }
+
+            // Vertical scale markings
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#475569';
+            ctx.font = '10px JetBrains Mono';
+
+            for (let i = 0.5; i < xMax; i += 0.5) {
+                const xPos = scaleX(i);
+                ctx.beginPath();
+                ctx.moveTo(xPos, 0);
+                ctx.lineTo(xPos, h);
+                ctx.stroke();
+                ctx.fillText(i.toFixed(1), xPos - 8, h - 6);
+            }
+
+            // Evaluate prior and posterior profiles in numerically stable log-space
+            const numSteps = 150;
+            const priorLogs = [];
+            const postLogs = [];
+            const sValues = [];
+            let maxPriorLog = -Infinity;
+            let maxPostLog = -Infinity;
+
+            for (let i = 0; i <= numSteps; i++) {
+                const s = xMin + (i / numSteps) * (xMax - xMin);
+                sValues.push(s);
+                
+                const logPrior = logVolatilityPDF(s, priorAlpha, priorBeta);
+                const logPost = logVolatilityPDF(s, postAlpha, postBeta);
+                
+                priorLogs.push(logPrior);
+                postLogs.push(logPost);
+
+                if (logPrior > maxPriorLog) maxPriorLog = logPrior;
+                if (logPost > maxPostLog) maxPostLog = logPost;
+            }
+
+            // Project log-densities to normal canvas coordinates
+            const scaleYPrior = (logVal) => h - 20 - Math.exp(logVal - maxPriorLog) * (h - 50);
+            const scaleYPost = (logVal) => h - 20 - Math.exp(logVal - maxPostLog) * (h - 50);
+
+            // 1. Volatility Prior Profile (Slate Dashed)
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            for (let i = 0; i <= numSteps; i++) {
+                const px = scaleX(sValues[i]);
+                const py = scaleYPrior(priorLogs[i]);
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 2. Volatility Posterior Profile (Solid Orange/Amber fill)
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.12)'; // Soft Amber Fill
+            ctx.strokeStyle = '#f59e0b'; // Amber Line
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(scaleX(xMin), h - 20);
+            for (let i = 0; i <= numSteps; i++) {
+                const px = scaleX(sValues[i]);
+                const py = scaleYPost(postLogs[i]);
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(scaleX(xMax), h - 20);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // True Volatility parameter line marker
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(scaleX(sigma), 0);
+            ctx.lineTo(scaleX(sigma), h - 20);
+            ctx.stroke();
+
+            // Overlay stats text
+            const currentEstVol = Math.sqrt(postBeta / (postAlpha - 1.0));
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px Inter';
+            ctx.fillText(`True σ: ${sigma.toFixed(2)}`, scaleX(sigma) + 6, 20);
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillText(`Est E[σ]: ${currentEstVol.toFixed(2)}`, scaleX(currentEstVol) + 6, 40);
+        }
+
+        // Global Simulation / Render loop
+        function mainLoop() {
+            if (!isPaused) {
+                integrateStep();
+                updateBayesianEstimation();
+            }
+
+            drawSimulationPath();
+            drawPosteriorMu();
+            drawPosteriorSigma();
+
+            requestAnimationFrame(mainLoop);
+        }
+
+        // Bind interactive event listeners
+        function setupEventListeners() {
+            Object.values(sliders).forEach(slider => {
+                slider.addEventListener('input', () => {
+                    updateFromSliders();
+                    // Reset estimates on adjustment of priors
+                    if (slider === sliders.priorMean || slider === sliders.priorVar || 
+                        slider === sliders.priorSigmaGuess || slider === sliders.priorSigmaDof) {
+                        postMuMean = priorMuMean;
+                        postMuVar = priorMuVar;
+                        postAlpha = priorAlpha;
+                        postBeta = priorBeta;
+                    }
+                });
+            });
+
+            // Resets simulation path instantly if the start position is changed
+            sliders.x0.addEventListener('input', () => {
+                resetSimulation();
+            });
+
+            // Play/Pause simulation state
+            btnPlayPause.addEventListener('click', () => {
+                isPaused = !isPaused;
+                if (isPaused) {
+                    iconPlay.classList.remove('hidden');
+                    iconPause.classList.add('hidden');
+                    textPlayPause.innerText = 'Resume Simulation';
+                } else {
+                    iconPlay.classList.add('hidden');
+                    iconPause.classList.remove('hidden');
+                    textPlayPause.innerText = 'Pause Simulation';
+                }
+            });
+
+            // Re-initialize path simulation completely
+            btnReset.addEventListener('click', () => {
+                resetSimulation();
+            });
+
+            // Fluid UI: Dynamically scale canvases on window resize
+            window.addEventListener('resize', () => {
+                pathObj = setupCanvas('canvas-path');
+                postMuObj = setupCanvas('canvas-posterior-mu');
+                postSigmaObj = setupCanvas('canvas-posterior-sigma');
+            });
+        }
+
+        // Bootstrap
+        updateFromSliders();
+        resetSimulation();
+        setupEventListeners();
+        mainLoop();
+    </script>
+</body>
+</html>
