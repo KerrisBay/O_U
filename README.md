@@ -1,1 +1,1 @@
-kerrisbay.github.io/O_U/
+https://kerrisbay.github.io/O_U/
